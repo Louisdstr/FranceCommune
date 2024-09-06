@@ -77,3 +77,72 @@ def open_request_window():
     copy_button.pack(pady=5)
 
     root.wait_window(request_window)
+
+
+import tkinter as tk
+from tkinter import messagebox, simpledialog
+import requests
+
+def get_info_town(entry):
+    global output_text, copy_button
+
+    nom_commune = entry.get()
+    if not nom_commune:
+        messagebox.showwarning("Erreur", "Veuillez entrer un nom de commune.")
+        return
+
+    # URL de l'API avec les champs requis
+    url = f"https://geo.api.gouv.fr/communes?nom={nom_commune}&fields=departement,codesPostaux,population,siren,codeEpci"
+    response = requests.get(url)
+
+    if response.status_code == 200:
+        communes = response.json()
+        if not communes:
+            messagebox.showinfo("Information", "Aucune commune trouvée pour ce nom.")
+            return
+
+        # Si plus d'une commune est trouvée, on affiche une boîte de dialogue pour choisir
+        if len(communes) > 1:
+            commune_names = [commune['nom'] for commune in communes]
+            selected_commune = simpledialog.askstring(
+                "Sélectionnez une commune", 
+                f"Plusieurs communes ont été trouvées pour '{nom_commune}'.\nVeuillez entrer le nom exact de la commune parmi ces choix :\n{', '.join(commune_names)}"
+            )
+
+            # Si l'utilisateur annule ou n'entre rien, on arrête la fonction
+            if not selected_commune:
+                messagebox.showinfo("Information", "Aucune commune sélectionnée.")
+                return
+
+            # Filtrer la commune sélectionnée
+            communes = [commune for commune in communes if commune['nom'].lower() == selected_commune.lower()]
+            if not communes:
+                messagebox.showerror("Erreur", f"Aucune commune trouvée correspondant à '{selected_commune}'.")
+                return
+
+        # Une fois la commune sélectionnée, on extrait les informations
+        commune = communes[0]
+        nom_commune = commune['nom']
+        code_postal = commune['codesPostaux'][0] if commune['codesPostaux'] else 'Non disponible'
+        population = commune.get('population', 'Non disponible')
+        siren = commune.get('siren', 'Non disponible')
+        code_epci = commune.get('codeEpci', 'Non disponible')
+        nom_departement = commune['departement']['nom']
+        code_departement = commune['departement']['code']
+
+        # Affichage des informations dans la zone de texte
+        text = (f"Nom de la commune : {nom_commune}\n"
+                f"Code Postal : {code_postal}\n"
+                f"Population : {population}\n"
+                f"SIREN : {siren}\n"
+                f"Code EPCI : {code_epci}\n"
+                f"Département : {nom_departement} ({code_departement})\n")
+
+        output_text.delete("1.0", tk.END)
+        output_text.insert(tk.END, text)
+        copy_button.config(state="normal")
+
+    else:
+        messagebox.showerror("Erreur", f"Erreur lors de la récupération des données : {response.status_code}")
+
+
